@@ -648,8 +648,8 @@ button { cursor: pointer; }
 .dt-head .dt-cell {
   min-height: 40px;
   font-size: 11px;
-  color: var(--muted);
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 700;
 }
 .dt-node {
   position: sticky;

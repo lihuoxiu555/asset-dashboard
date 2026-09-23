@@ -155,7 +155,7 @@
     const data = abnormal ? M.ABNORMAL_TRENDS : M.TRENDS;
     const last7 = (M.TRENDS.wip || []).slice(-7);
     const today = last7[last7.length - 1].date;
-    const history = last7.slice(0, -1).reverse();
+    const history = last7.slice(0, -1).reverse().map((p) => p.date);
     const head = `<div class="dt-row dt-head">
       <div class="dt-cell dt-node">节点</div>
       <div class="dt-cell dt-today">今日<small>${today}</small></div>
@@ -201,16 +201,7 @@
     $("#app").innerHTML = `
       ${topBar("", { home: true, account: true })}
       <div class="page page-notab">
-        <div class="home-top">
-          <div class="kpi-grid four home-kpi">
-            <div class="card"><label>成品总数</label><strong>${h.finishedTotal} 块</strong></div>
-            <div class="card"><label>正常</label><strong class="tone-green">${h.normal}</strong></div>
-            <div class="card"><label>异常</label><strong class="tone-red">${h.abnormal}</strong></div>
-            <div class="card"><label>金额</label><strong>${money(h.amountTotal)}</strong></div>
-          </div>
-          <p class="section-legend">金额 = SN × 型号 × BOM 理论值</p>
-        </div>
-        <div class="section-title">九个节点（多日对比）</div>
+        <div class="section-title" style="margin-top:4px">九个节点（多日对比）</div>
         <div class="seg-tabs" role="tablist">
           <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
           <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
@@ -507,19 +498,26 @@
   }
 
   function trendSvg(points, pinToday) {
-    const w = Math.max(320, points.length * 26), h = 120, pad = 18;
+    const w = Math.max(320, points.length * 26), h = 140, pad = 18, labelH = 18;
+    const chartH = h - labelH;
     const vs = points.map((p) => p.v);
     const min = Math.min.apply(null, vs);
     const max = Math.max.apply(null, vs);
     const span = max - min || 1;
     const xs = points.map((_, i) => pad + (i * (w - pad * 2)) / (points.length - 1));
-    const ys = points.map((p) => h - pad - ((p.v - min) / span) * (h - pad * 2));
+    const ys = points.map((p) => chartH - pad + 6 - ((p.v - min) / span) * (chartH - pad * 2));
     const d = xs.map((x, i) => (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1)).join(" ");
     const dots = points.map((p, i) => {
       const pin = pinToday && p.today;
       return `<circle cx="${xs[i]}" cy="${ys[i]}" r="${pin ? 5 : 3}" fill="${pin ? "#0d9488" : "#657383"}"></circle>`;
     }).join("");
-    return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" width="100%" height="120">${d ? `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2"/>` : ""}${dots}</svg>`;
+    const tickCount = Math.min(6, points.length);
+    const labels = [];
+    for (let i = 0; i < tickCount; i++) {
+      const idx = tickCount === 1 ? 0 : Math.round((i * (points.length - 1)) / (tickCount - 1));
+      labels.push(`<text x="${xs[idx].toFixed(1)}" y="${h - 4}" font-size="9" fill="#657383" text-anchor="middle">${points[idx].date}</text>`);
+    }
+    return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${d ? `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2"/>` : ""}${dots}${labels.join("")}</svg>`;
   }
 
   function trendMonthsOf(pts) {
