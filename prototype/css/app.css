@@ -715,6 +715,34 @@ button.dt-node { border: 0; cursor: pointer; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+.trend-tip {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f4f7fb;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.trend-tip.on {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+.trend-tip.on b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.trend-svg { overflow: visible; }
+.trend-dot { cursor: pointer; }
+.trend-dot.on .mark {
+  fill: #0d9488;
+  stroke: #0d9488;
+  stroke-width: 8;
+  stroke-opacity: .22;
+}
 
 @media (max-width: 430px) {
   .desktop-wrap { padding: 0; }

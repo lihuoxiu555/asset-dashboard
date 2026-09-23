@@ -520,12 +520,15 @@
     const min = Math.min.apply(null, vs);
     const max = Math.max.apply(null, vs);
     const span = max - min || 1;
-    const xs = points.map((_, i) => pad + (i * (w - pad * 2)) / (points.length - 1));
+    const xs = points.map((_, i) => pad + (i * (w - pad * 2)) / Math.max(points.length - 1, 1));
     const ys = points.map((p) => chartH - pad + 6 - ((p.v - min) / span) * (chartH - pad * 2));
     const d = xs.map((x, i) => (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1)).join(" ");
     const dots = points.map((p, i) => {
       const pin = pinToday && p.today;
-      return `<circle cx="${xs[i]}" cy="${ys[i]}" r="${pin ? 5 : 3}" fill="${pin ? "#0d9488" : "#657383"}"></circle>`;
+      return `<g class="trend-dot" data-act="trend-dot" data-i="${i}">
+        <circle class="hit" cx="${xs[i]}" cy="${ys[i]}" r="14" fill="transparent"></circle>
+        <circle class="mark" cx="${xs[i]}" cy="${ys[i]}" r="${pin ? 5 : 3.2}" fill="${pin ? "#0d9488" : "#657383"}"></circle>
+      </g>`;
     }).join("");
     const tickCount = Math.min(6, points.length);
     const labels = [];
@@ -533,7 +536,7 @@
       const idx = tickCount === 1 ? 0 : Math.round((i * (points.length - 1)) / (tickCount - 1));
       labels.push(`<text x="${xs[idx].toFixed(1)}" y="${h - 4}" font-size="9" fill="#657383" text-anchor="middle">${points[idx].date}</text>`);
     }
-    return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${d ? `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2"/>` : ""}${dots}${labels.join("")}</svg>`;
+    return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" data-xs="${xs.map((x) => x.toFixed(1)).join(",")}">${d ? `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2"/>` : ""}${dots}${labels.join("")}</svg>`;
   }
 
   function trendMonthsOf(pts) {
@@ -564,7 +567,9 @@
     const table = `<div class="trend-table-wrap"><table class="trend-table"><tr>${pts.map((p) =>
       `<th class="${pin && p.today ? "pin" : ""}">${p.date}${pin && p.today ? "<br>钉" : ""}</th>`).join("")}</tr><tr>${pts.map((p) =>
       `<td class="${pin && p.today ? "pin" : ""}">${p.v}</td>`).join("")}</tr></table></div>`;
-    const body = mode === "table" ? table : `<div class="trend-scroll">${trendSvg(pts, pin)}</div>`;
+    const body = mode === "table"
+      ? table
+      : `<div class="trend-tip" id="trendTip">点折线上的圆点，看当日数据</div><div class="trend-scroll">${trendSvg(pts, pin)}</div>`;
     const monthOpts = (range === "month" ? "" : `<option value="" selected disabled>按月</option>`) +
       months.map((m) => `<option value="${m}" ${range === "month" && state.pf.trend.month === m ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
     const html = `
@@ -600,6 +605,7 @@
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         state.pf.trend.range = el.getAttribute("data-id");
+        state.pf.trend.pick = null;
         paintTrend();
       });
     });
@@ -609,15 +615,58 @@
       if (monthSel.value) {
         state.pf.trend.range = "month";
         state.pf.trend.month = monthSel.value;
+        state.pf.trend.pick = null;
         paintTrend();
       }
     });
     const scroller = $(".trend-scroll", $("#overlay"));
     if (scroller) scroller.scrollLeft = scroller.scrollWidth;
+    if (mode !== "table") bindTrendDots(pts, node);
+  }
+
+  function bindTrendDots(pts, node) {
+    const root = $("#overlay");
+    const tip = $("#trendTip", root);
+    const unit = state.pf.trend.dataset === "abnormal" ? "条" : (node.kind === "material" ? "万" : "块");
+    function paintTip(i) {
+      const p = pts[i];
+      if (!p || !tip) return;
+      state.pf.trend.pick = i;
+      tip.innerHTML = `<span>${p.ymd}</span><b>${p.v}</b><span>${unit}</span>`;
+      tip.classList.add("on");
+      $$(".trend-dot", root).forEach((g) => g.classList.toggle("on", Number(g.getAttribute("data-i")) === i));
+    }
+    $$("[data-act='trend-dot']", root).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        paintTip(Number(el.getAttribute("data-i")));
+      });
+    });
+    const svg = $(".trend-svg", root);
+    if (svg) {
+      svg.addEventListener("click", (e) => {
+        if (e.target.closest("[data-act='trend-dot']")) return;
+        e.stopPropagation();
+        const xs = (svg.getAttribute("data-xs") || "").split(",").map(Number);
+        if (!xs.length) return;
+        const rect = svg.getBoundingClientRect();
+        const vb = svg.viewBox.baseVal;
+        const x = ((e.clientX - rect.left) / rect.width) * vb.width;
+        let best = 0, bestD = Infinity;
+        xs.forEach((cx, i) => {
+          const d = Math.abs(cx - x);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        paintTip(best);
+      });
+    }
+    const pick = state.pf.trend.pick;
+    if (pick != null && pts[pick]) paintTip(pick);
   }
   function openTrend(nodeId, dataset) {
     state.pf.trend.node = nodeId;
     state.pf.trend.dataset = dataset === "abnormal" ? "abnormal" : "normal";
+    state.pf.trend.pick = null;
     paintTrend();
   }
 
@@ -766,6 +815,7 @@
     const actEl = e.target.closest("[data-act]");
     if (!actEl) return;
     const act = actEl.getAttribute("data-act");
+    if (act === "trend-dot") return;
     if (act === "close-sheet") closeOverlays();
     if (act === "logout") { state.user = null; sessionStorage.removeItem("asset-board-user"); go("#/login"); }
     if (act === "retry") { state.demoError = false; saveSession(); render(); }
