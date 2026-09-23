@@ -201,7 +201,15 @@
     $("#app").innerHTML = `
       ${topBar("", { home: true, account: true })}
       <div class="page page-notab">
-        <div class="section-title" style="margin-top:4px">九个节点（多日对比）</div>
+        <div class="home-top">
+          <div class="kpi-grid three home-kpi">
+            <div class="card"><label>成品总数</label><strong>${h.finishedTotal} 块</strong></div>
+            <div class="card clickable" data-go="#/exceptions"><label>异常</label><strong class="tone-red">${h.abnormal}</strong></div>
+            <div class="card"><label>金额</label><strong>${money(h.amountTotal)}</strong></div>
+          </div>
+          <p class="section-legend">金额 = SN × 型号 × BOM 理论值</p>
+        </div>
+        <div class="section-title">九个节点（多日对比）</div>
         <div class="seg-tabs" role="tablist">
           <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
           <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
