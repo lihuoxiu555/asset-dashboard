@@ -8,10 +8,10 @@
     route: "login",
     params: {},
     pf: {
-      home: { day: "today" },
+      home: { day: "today", nodeTab: "normal" },
       node: { sn: "", place: "" },
       exceptions: { type: "all", idle: "5", status: "open" },
-      trend: { node: "", mode: "line", pinToday: true },
+      trend: { node: "", mode: "line", pinToday: true, dataset: "normal" },
     },
     demoEmpty: false,
     demoError: false,
@@ -144,26 +144,60 @@
     </div>`;
   }
 
+  function fmtQty(n, v) {
+    if (v == null) return `<b>—</b>`;
+    return n.kind === "material" ? `<b>${v}</b><small>万</small>` : `<b>${v}</b>`;
+  }
+
+  function nodeTableHtml(tab) {
+    if (state.demoEmpty) return emptyBox("这一节点暂时没有记录");
+    const abnormal = tab === "abnormal";
+    const data = abnormal ? M.ABNORMAL_TRENDS : M.TRENDS;
+    const days = (M.TRENDS.wip || []).map((p) => p.date);
+    const today = days[days.length - 1];
+    const history = days.slice(0, -1).reverse();
+    const head = `<div class="dt-row dt-head">
+      <div class="dt-cell dt-node">节点</div>
+      <div class="dt-cell dt-today">今日<small>${today}</small></div>
+      ${history.map((d) => `<div class="dt-cell dt-day">${d}</div>`).join("")}
+      <div class="dt-cell dt-trend">趋势</div>
+    </div>`;
+    const rows = M.NODES.map((n) => {
+      const byDate = {};
+      (data[n.id] || []).forEach((p) => { byDate[p.date] = p.v; });
+      return `<div class="dt-row">
+        <button type="button" class="dt-cell dt-node dt-node-link" data-go="#/node/${n.id}">${n.name}</button>
+        <div class="dt-cell dt-today">${fmtQty(n, byDate[today])}</div>
+        ${history.map((d) => `<div class="dt-cell dt-day">${fmtQty(n, byDate[d])}</div>`).join("")}
+        <div class="dt-cell dt-trend">
+          <button type="button" class="trend-fab" data-open="trend" data-node="${n.id}" data-dataset="${tab}" aria-label="${n.name} 多日趋势">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><polyline points="3,17 8,11 12,14 21,5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="5" r="1.8" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join("");
+    return `<div class="dt-wrap">${head}${rows}</div>`;
+  }
+
   function renderHome() {
     const h = currentSnap();
     if (state.demoError) {
       $("#app").innerHTML = `${topBar("", { home: true, account: true })}<div class="page page-notab">${errorBox("主看板加载失败")}</div>`;
       return;
     }
-    const nodes = M.NODES.map((n) => {
-      const qty = n.kind === "material" ? n.primary : `${n.bat} 块`;
-      const badge = n.exceptions
-        ? `<span class="pill danger" title="未关闭异常">${n.exceptions}</span>`
-        : "";
-      return `<div class="stage-wrap">
-        <button class="stage-row" data-go="#/node/${n.id}">
-          <div><b>${n.name}</b><small>${n.split}</small></div>
-          <div class="metric">${qty}${badge}</div>
-        </button>
-        ${timeBtn(n.id)}
-      </div>`;
-    }).join("");
+    const nodeTab = state.pf.home.nodeTab === "abnormal" ? "abnormal" : "normal";
     const bars = h.overdueBars || { 5: 0, 7: 0, 10: 0 };
+    const abnormalCards = `
+      <div class="card clickable" data-go="#/exceptions?type=overdue">
+        <label>超期</label>
+        <strong class="tone-yellow">${h.overdue}</strong>
+        ${overdueBarsHtml(bars)}
+      </div>
+      <div class="kpi-grid" style="margin:8px 0 0">
+        <div class="card clickable" data-go="#/exceptions?type=conflict"><label>多维冲突</label><strong class="tone-red">${h.conflict}</strong><div class="split">同一 SN 去重</div></div>
+        <div class="card clickable" data-go="#/exceptions?type=orphan"><label>归属缺失</label><strong class="tone-red">${h.orphan}</strong><div class="split">当前归属为空</div></div>
+      </div>
+      <p class="section-legend" style="margin-top:8px">从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细</p>`;
     $("#app").innerHTML = `
       ${topBar("", { home: true, account: true })}
       <div class="page page-notab">
@@ -176,20 +210,14 @@
           </div>
           <p class="section-legend">金额 = SN × 型号 × BOM 理论值</p>
         </div>
-        <div class="section-title">异常（置顶）</div>
-        <p class="section-legend">从环节剥离 · 超期 5/7/10 · 冲突已去重</p>
-        <div class="card clickable" data-go="#/exceptions?type=overdue">
-          <label>超期</label>
-          <strong class="tone-yellow">${h.overdue}</strong>
-          ${overdueBarsHtml(bars)}
+        <div class="section-title">九个节点（多日对比）</div>
+        <div class="seg-tabs" role="tablist">
+          <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">正常</button>
+          <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
         </div>
-        <div class="kpi-grid" style="margin-top:8px">
-          <div class="card clickable" data-go="#/exceptions?type=conflict"><label>多维冲突</label><strong class="tone-red">${h.conflict}</strong><div class="split">同一 SN 去重</div></div>
-          <div class="card clickable" data-go="#/exceptions?type=orphan"><label>归属缺失</label><strong class="tone-red">${h.orphan}</strong><div class="split">当前归属为空</div></div>
-        </div>
-        <div class="section-title">九个节点（点开下钻）</div>
-        <p class="section-legend">红标 = 该环节未关闭异常</p>
-        <div class="funnel">${nodes}</div>
+        ${nodeTab === "abnormal" ? abnormalCards : ""}
+        <p class="section-legend">${nodeTab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点节点名下钻 · 左滑看更早日期</p>
+        ${nodeTableHtml(nodeTab)}
       </div>`;
   }
 
@@ -497,7 +525,8 @@
   function paintTrend() {
     const id = state.pf.trend.node;
     const node = M.NODES.find((n) => n.id === id);
-    const pts = (M.TRENDS[id] || []).slice();
+    const abnormal = state.pf.trend.dataset === "abnormal";
+    const pts = ((abnormal ? M.ABNORMAL_TRENDS : M.TRENDS)[id] || []).slice();
     if (!node || !pts.length) { toast("没有趋势"); return; }
     const pin = !!state.pf.trend.pinToday;
     const mode = state.pf.trend.mode || "line";
@@ -514,7 +543,7 @@
       <p class="section-legend">各环节同一套 · 左右滑看不同日。底层全量留，前端先核心。</p>
       ${body}
       <button class="btn ghost block" style="margin-top:12px" data-act="close-sheet">关闭</button>`;
-    openSheet((node.name || "") + " · 时间趋势", html);
+    openSheet((node.name || "") + (abnormal ? " · 异常趋势" : " · 时间趋势"), html);
     $$("[data-act='trend-mode']", $("#overlay")).forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -530,8 +559,9 @@
       });
     });
   }
-  function openTrend(nodeId) {
+  function openTrend(nodeId, dataset) {
     state.pf.trend.node = nodeId;
+    state.pf.trend.dataset = dataset === "abnormal" ? "abnormal" : "normal";
     paintTrend();
   }
 
@@ -672,7 +702,7 @@
     if (openEl) {
       const kind = openEl.getAttribute("data-open");
       if (kind === "day") openDay();
-      if (kind === "trend") openTrend(openEl.getAttribute("data-node"));
+      if (kind === "trend") openTrend(openEl.getAttribute("data-node"), openEl.getAttribute("data-dataset"));
       return;
     }
     const goEl = e.target.closest("[data-go]");
@@ -692,6 +722,11 @@
     if (act === "ex-idle") {
       state.pf.exceptions.idle = actEl.getAttribute("data-id");
       renderExceptions();
+    }
+    if (act === "node-tab") {
+      state.pf.home.nodeTab = actEl.getAttribute("data-id") === "abnormal" ? "abnormal" : "normal";
+      renderHome();
+      return;
     }
     if (act === "cal-shift") {
       shiftCalMonth(Number(actEl.getAttribute("data-dir")));

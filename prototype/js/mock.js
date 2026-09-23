@@ -114,6 +114,45 @@ window.AssetBoardMock = (function () {
     ],
   };
 
+  const ABNORMAL_TRENDS = {
+    material: [
+      { date: "09-17", v: 0 }, { date: "09-18", v: 0 }, { date: "09-19", v: 0 },
+      { date: "09-20", v: 0 }, { date: "09-21", v: 0 }, { date: "09-22", v: 0 }, { date: "09-23", v: 0, today: true },
+    ],
+    wip: [
+      { date: "09-17", v: 0 }, { date: "09-18", v: 0 }, { date: "09-19", v: 1 },
+      { date: "09-20", v: 1 }, { date: "09-21", v: 0 }, { date: "09-22", v: 1 }, { date: "09-23", v: 1, today: true },
+    ],
+    factory: [
+      { date: "09-17", v: 0 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
+      { date: "09-20", v: 0 }, { date: "09-21", v: 1 }, { date: "09-22", v: 1 }, { date: "09-23", v: 1, today: true },
+    ],
+    transit: [
+      { date: "09-17", v: 1 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
+      { date: "09-20", v: 2 }, { date: "09-21", v: 2 }, { date: "09-22", v: 2 }, { date: "09-23", v: 2, today: true },
+    ],
+    front: [
+      { date: "09-17", v: 1 }, { date: "09-18", v: 2 }, { date: "09-19", v: 2 },
+      { date: "09-20", v: 2 }, { date: "09-21", v: 3 }, { date: "09-22", v: 3 }, { date: "09-23", v: 3, today: true },
+    ],
+    cabinet: [
+      { date: "09-17", v: 2 }, { date: "09-18", v: 2 }, { date: "09-19", v: 3 },
+      { date: "09-20", v: 3 }, { date: "09-21", v: 3 }, { date: "09-22", v: 4 }, { date: "09-23", v: 4, today: true },
+    ],
+    rider: [
+      { date: "09-17", v: 1 }, { date: "09-18", v: 2 }, { date: "09-19", v: 2 },
+      { date: "09-20", v: 2 }, { date: "09-21", v: 3 }, { date: "09-22", v: 3 }, { date: "09-23", v: 3, today: true },
+    ],
+    maint: [
+      { date: "09-17", v: 0 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
+      { date: "09-20", v: 1 }, { date: "09-21", v: 2 }, { date: "09-22", v: 2 }, { date: "09-23", v: 2, today: true },
+    ],
+    orphan: [
+      { date: "09-17", v: 6 }, { date: "09-18", v: 7 }, { date: "09-19", v: 8 },
+      { date: "09-20", v: 9 }, { date: "09-21", v: 11 }, { date: "09-22", v: 12 }, { date: "09-23", v: 14, today: true },
+    ],
+  };
+
   const WIDE = [
     { sn: "BAT09A12200", node: "wip", woId: "WO-0920-033", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },
     { sn: "BAT09A12210", node: "wip", woId: "WO-0922-011", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },
@@ -184,5 +223,5 @@ window.AssetBoardMock = (function () {
     ],
   };
 
-  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, TRENDS, WIDE, EXCEPTIONS, TRAILS };
+  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, TRENDS, ABNORMAL_TRENDS, WIDE, EXCEPTIONS, TRAILS };
 })();

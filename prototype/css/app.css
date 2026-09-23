@@ -593,6 +593,107 @@ button { cursor: pointer; }
 }
 .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
+/* 正常/异常 分段 tab */
+.seg-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 2px 8px;
+  padding: 3px;
+  background: #e8eef3;
+  border-radius: 10px;
+}
+.seg {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.seg.on {
+  background: #fff;
+  color: var(--brand-dark);
+  box-shadow: 0 1px 3px rgba(22,33,43,.12);
+}
+
+/* 九节点多日表：节点列 + 今日列固定左侧，历史日期左滑查看，趋势列悬浮右侧 */
+.dt-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.dt-row {
+  display: grid;
+  grid-template-columns: 92px 64px repeat(6, 56px) 56px;
+  min-width: 544px;
+}
+.dt-row + .dt-row { border-top: 1px solid var(--line); }
+.dt-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 4px 2px;
+  font-size: 13px;
+  background: #fff;
+  text-align: center;
+}
+.dt-cell b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.dt-cell small { font-size: 10px; color: var(--muted); font-weight: 400; }
+.dt-head .dt-cell {
+  min-height: 40px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.dt-node {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  align-items: flex-start;
+  padding-left: 10px;
+  font-weight: 600;
+  box-shadow: 1px 0 0 0 var(--line);
+}
+button.dt-node { border: 0; cursor: pointer; }
+.dt-node-link { color: var(--ink); }
+.dt-node-link:active { color: var(--brand-dark); background: var(--soft); }
+.dt-today {
+  position: sticky;
+  left: 92px;
+  z-index: 2;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-weight: 700;
+  box-shadow: 1px 0 0 0 var(--line);
+}
+.dt-today small { color: var(--brand-dark); font-weight: 400; }
+.dt-trend {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 30%);
+}
+.dt-head .dt-trend { background: linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 30%); }
+.trend-fab {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--brand-dark);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 4px 10px rgba(22,33,43,.16);
+}
+.trend-fab:active { transform: scale(.94); background: var(--brand-soft); }
+
 @media (max-width: 430px) {
   .desktop-wrap { padding: 0; }
   .desktop-note { display: none; }
