@@ -188,14 +188,22 @@
     const nodeTab = state.pf.home.nodeTab === "abnormal" ? "abnormal" : "normal";
     const bars = h.overdueBars || { 5: 0, 7: 0, 10: 0 };
     const abnormalCards = `
-      <div class="card clickable" data-go="#/exceptions?type=overdue">
-        <label>超期</label>
-        <strong class="tone-yellow">${h.overdue}</strong>
-        ${overdueBarsHtml(bars)}
-      </div>
-      <div class="kpi-grid" style="margin:8px 0 0">
-        <div class="card clickable" data-go="#/exceptions?type=conflict"><label>多维冲突</label><strong class="tone-red">${h.conflict}</strong><div class="split">同一 SN 去重</div></div>
-        <div class="card clickable" data-go="#/exceptions?type=orphan"><label>归属缺失</label><strong class="tone-red">${h.orphan}</strong><div class="split">当前归属为空</div></div>
+      <div class="kpi-grid three home-kpi">
+        <div class="card clickable" data-go="#/exceptions?type=overdue">
+          <label>超期</label>
+          <strong class="tone-yellow">${h.overdue}</strong>
+          <div class="split">${bars[5] || 0} / ${bars[7] || 0} / ${bars[10] || 0}</div>
+        </div>
+        <div class="card clickable" data-go="#/exceptions?type=conflict">
+          <label>多维冲突</label>
+          <strong class="tone-red">${h.conflict}</strong>
+          <div class="split">同一 SN 去重</div>
+        </div>
+        <div class="card clickable" data-go="#/exceptions?type=orphan">
+          <label>归属缺失</label>
+          <strong class="tone-red">${h.orphan}</strong>
+          <div class="split">当前归属为空</div>
+        </div>
       </div>
       <p class="section-legend" style="margin-top:8px">从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细</p>`;
     $("#app").innerHTML = `
