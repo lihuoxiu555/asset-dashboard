@@ -11,7 +11,7 @@
       home: { day: "today", nodeTab: "normal" },
       node: { sn: "", place: "" },
       exceptions: { type: "all", idle: "5", status: "open" },
-      trend: { node: "", mode: "line", pinToday: true, dataset: "normal" },
+      trend: { node: "", mode: "line", pinToday: true, dataset: "normal", range: "7", month: "" },
     },
     demoEmpty: false,
     demoError: false,
@@ -153,9 +153,9 @@
     if (state.demoEmpty) return emptyBox("这一节点暂时没有记录");
     const abnormal = tab === "abnormal";
     const data = abnormal ? M.ABNORMAL_TRENDS : M.TRENDS;
-    const days = (M.TRENDS.wip || []).map((p) => p.date);
-    const today = days[days.length - 1];
-    const history = days.slice(0, -1).reverse();
+    const last7 = (M.TRENDS.wip || []).slice(-7);
+    const today = last7[last7.length - 1].date;
+    const history = last7.slice(0, -1).reverse();
     const head = `<div class="dt-row dt-head">
       <div class="dt-cell dt-node">节点</div>
       <div class="dt-cell dt-today">今日<small>${today}</small></div>
@@ -212,7 +212,7 @@
         </div>
         <div class="section-title">九个节点（多日对比）</div>
         <div class="seg-tabs" role="tablist">
-          <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">正常</button>
+          <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
           <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
         </div>
         ${nodeTab === "abnormal" ? abnormalCards : ""}
@@ -507,7 +507,7 @@
   }
 
   function trendSvg(points, pinToday) {
-    const w = 320, h = 120, pad = 18;
+    const w = Math.max(320, points.length * 26), h = 120, pad = 18;
     const vs = points.map((p) => p.v);
     const min = Math.min.apply(null, vs);
     const max = Math.max.apply(null, vs);
@@ -522,25 +522,49 @@
     return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" width="100%" height="120">${d ? `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2"/>` : ""}${dots}</svg>`;
   }
 
+  function trendMonthsOf(pts) {
+    const out = [];
+    pts.forEach((p) => { const m = p.ymd.slice(0, 7); if (!out.includes(m)) out.push(m); });
+    return out;
+  }
+  function monthLabel(m) { const [y, mm] = m.split("-"); return y + "年" + Number(mm) + "月"; }
+
   function paintTrend() {
     const id = state.pf.trend.node;
     const node = M.NODES.find((n) => n.id === id);
     const abnormal = state.pf.trend.dataset === "abnormal";
-    const pts = ((abnormal ? M.ABNORMAL_TRENDS : M.TRENDS)[id] || []).slice();
-    if (!node || !pts.length) { toast("没有趋势"); return; }
+    const full = ((abnormal ? M.ABNORMAL_TRENDS : M.TRENDS)[id] || []).slice();
+    if (!node || !full.length) { toast("没有趋势"); return; }
     const pin = !!state.pf.trend.pinToday;
     const mode = state.pf.trend.mode || "line";
+    const range = state.pf.trend.range || "7";
+    const months = trendMonthsOf(full);
+    if (!state.pf.trend.month || months.indexOf(state.pf.trend.month) < 0) {
+      state.pf.trend.month = months[months.length - 1];
+    }
+    let pts = full;
+    if (range === "7") pts = full.slice(-7);
+    else if (range === "30") pts = full.slice(-30);
+    else if (range === "month") pts = full.filter((p) => p.ymd.indexOf(state.pf.trend.month) === 0);
+    if (!pts.length) pts = full.slice(-7);
     const table = `<div class="trend-table-wrap"><table class="trend-table"><tr>${pts.map((p) =>
       `<th class="${pin && p.today ? "pin" : ""}">${p.date}${pin && p.today ? "<br>钉" : ""}</th>`).join("")}</tr><tr>${pts.map((p) =>
       `<td class="${pin && p.today ? "pin" : ""}">${p.v}</td>`).join("")}</tr></table></div>`;
-    const body = mode === "table" ? table : trendSvg(pts, pin);
+    const body = mode === "table" ? table : `<div class="trend-scroll">${trendSvg(pts, pin)}</div>`;
+    const monthOpts = (range === "month" ? "" : `<option value="" selected disabled>按月</option>`) +
+      months.map((m) => `<option value="${m}" ${range === "month" && state.pf.trend.month === m ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
     const html = `
+      <div class="filters-inline">
+        <button class="chip ${range === "7" ? "on" : ""}" data-act="trend-range" data-id="7">近7日</button>
+        <button class="chip ${range === "30" ? "on" : ""}" data-act="trend-range" data-id="30">近30日</button>
+        <select class="chip chip-select ${range === "month" ? "on" : ""}" id="trendMonth" aria-label="选择月份">${monthOpts}</select>
+      </div>
       <div class="filters-inline">
         <button class="chip ${mode === "line" ? "on" : ""}" data-act="trend-mode" data-id="line">折线</button>
         <button class="chip ${mode === "table" ? "on" : ""}" data-act="trend-mode" data-id="table">表</button>
         <button class="chip ${pin ? "on" : ""}" data-act="trend-pin">钉住当天对比</button>
       </div>
-      <p class="section-legend">各环节同一套 · 左右滑看不同日。底层全量留，前端先核心。</p>
+      <p class="section-legend">${pts[0].ymd} ~ ${pts[pts.length - 1].ymd} · 共 ${pts.length} 天</p>
       ${body}
       <button class="btn ghost block" style="margin-top:12px" data-act="close-sheet">关闭</button>`;
     openSheet((node.name || "") + (abnormal ? " · 异常趋势" : " · 时间趋势"), html);
@@ -558,6 +582,24 @@
         paintTrend();
       });
     });
+    $$("[data-act='trend-range']", $("#overlay")).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.pf.trend.range = el.getAttribute("data-id");
+        paintTrend();
+      });
+    });
+    const monthSel = $("#trendMonth", $("#overlay"));
+    if (monthSel) monthSel.addEventListener("change", (e) => {
+      e.stopPropagation();
+      if (monthSel.value) {
+        state.pf.trend.range = "month";
+        state.pf.trend.month = monthSel.value;
+        paintTrend();
+      }
+    });
+    const scroller = $(".trend-scroll", $("#overlay"));
+    if (scroller) scroller.scrollLeft = scroller.scrollWidth;
   }
   function openTrend(nodeId, dataset) {
     state.pf.trend.node = nodeId;

@@ -75,83 +75,53 @@ window.AssetBoardMock = (function () {
     { id: "WO-0922-011", line: "东莞一线", start: "2026-09-22 08:00", end: "进行中", duration: "1 天 1 时", bat: 46 },
   ];
 
-  const TRENDS = {
-    material: [
-      { date: "09-17", v: 17.8 }, { date: "09-18", v: 17.9 }, { date: "09-19", v: 18.1 },
-      { date: "09-20", v: 18.1 }, { date: "09-21", v: 18.2 }, { date: "09-22", v: 18.4 }, { date: "09-23", v: 18.6, today: true },
-    ],
-    wip: [
-      { date: "09-17", v: 70 }, { date: "09-18", v: 72 }, { date: "09-19", v: 74 },
-      { date: "09-20", v: 76 }, { date: "09-21", v: 80 }, { date: "09-22", v: 82 }, { date: "09-23", v: 86, today: true },
-    ],
-    factory: [
-      { date: "09-17", v: 188 }, { date: "09-18", v: 190 }, { date: "09-19", v: 194 },
-      { date: "09-20", v: 196 }, { date: "09-21", v: 198 }, { date: "09-22", v: 204 }, { date: "09-23", v: 210, today: true },
-    ],
-    transit: [
-      { date: "09-17", v: 68 }, { date: "09-18", v: 70 }, { date: "09-19", v: 71 },
-      { date: "09-20", v: 72 }, { date: "09-21", v: 74 }, { date: "09-22", v: 76 }, { date: "09-23", v: 80, today: true },
-    ],
-    front: [
-      { date: "09-17", v: 310 }, { date: "09-18", v: 308 }, { date: "09-19", v: 306 },
-      { date: "09-20", v: 304 }, { date: "09-21", v: 302 }, { date: "09-22", v: 296 }, { date: "09-23", v: 290, today: true },
-    ],
-    cabinet: [
-      { date: "09-17", v: 1640 }, { date: "09-18", v: 1648 }, { date: "09-19", v: 1652 },
-      { date: "09-20", v: 1658 }, { date: "09-21", v: 1662 }, { date: "09-22", v: 1670 }, { date: "09-23", v: 1680, today: true },
-    ],
-    rider: [
-      { date: "09-17", v: 396 }, { date: "09-18", v: 400 }, { date: "09-19", v: 402 },
-      { date: "09-20", v: 404 }, { date: "09-21", v: 408 }, { date: "09-22", v: 414 }, { date: "09-23", v: 420, today: true },
-    ],
-    maint: [
-      { date: "09-17", v: 28 }, { date: "09-18", v: 28 }, { date: "09-19", v: 29 },
-      { date: "09-20", v: 30 }, { date: "09-21", v: 30 }, { date: "09-22", v: 33 }, { date: "09-23", v: 36, today: true },
-    ],
-    orphan: [
-      { date: "09-17", v: 8 }, { date: "09-18", v: 8 }, { date: "09-19", v: 9 },
-      { date: "09-20", v: 10 }, { date: "09-21", v: 11 }, { date: "09-22", v: 12 }, { date: "09-23", v: 14, today: true },
-    ],
-  };
+  // 多日趋势：生成 91 天（06-25 ~ 09-23）确定性序列，末日锚定当前在量/异常数
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function hashNoise(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return ((h >>> 0) % 1000) / 1000;
+  }
+  function trendDates(endYmd, days) {
+    const [y, m, d] = endYmd.split("-").map(Number);
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const dt = new Date(y, m - 1, d - i);
+      const mm = pad2(dt.getMonth() + 1);
+      const dd = pad2(dt.getDate());
+      out.push({ ymd: dt.getFullYear() + "-" + mm + "-" + dd, label: mm + "-" + dd });
+    }
+    return out;
+  }
+  function genTrend(nodeId, todayV, opts) {
+    opts = opts || {};
+    const amp = opts.amp != null ? opts.amp : Math.max(2, todayV * 0.015);
+    const decimals = opts.decimals || 0;
+    const days = trendDates(SNAPSHOTS[0].date, 91);
+    const arr = new Array(days.length);
+    let v = todayV;
+    for (let i = days.length - 1; i >= 0; i--) {
+      arr[i] = { date: days[i].label, ymd: days[i].ymd, v: v };
+      if (i === days.length - 1) arr[i].today = true;
+      const n = hashNoise(nodeId + ":" + days[i].ymd);
+      let prev = v + (n - 0.5) * amp + (todayV - v) * 0.03;
+      prev = Math.max(0, prev);
+      v = decimals ? Math.round(prev * 10) / 10 : Math.round(prev);
+    }
+    return arr;
+  }
 
-  const ABNORMAL_TRENDS = {
-    material: [
-      { date: "09-17", v: 0 }, { date: "09-18", v: 0 }, { date: "09-19", v: 0 },
-      { date: "09-20", v: 0 }, { date: "09-21", v: 0 }, { date: "09-22", v: 0 }, { date: "09-23", v: 0, today: true },
-    ],
-    wip: [
-      { date: "09-17", v: 0 }, { date: "09-18", v: 0 }, { date: "09-19", v: 1 },
-      { date: "09-20", v: 1 }, { date: "09-21", v: 0 }, { date: "09-22", v: 1 }, { date: "09-23", v: 1, today: true },
-    ],
-    factory: [
-      { date: "09-17", v: 0 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
-      { date: "09-20", v: 0 }, { date: "09-21", v: 1 }, { date: "09-22", v: 1 }, { date: "09-23", v: 1, today: true },
-    ],
-    transit: [
-      { date: "09-17", v: 1 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
-      { date: "09-20", v: 2 }, { date: "09-21", v: 2 }, { date: "09-22", v: 2 }, { date: "09-23", v: 2, today: true },
-    ],
-    front: [
-      { date: "09-17", v: 1 }, { date: "09-18", v: 2 }, { date: "09-19", v: 2 },
-      { date: "09-20", v: 2 }, { date: "09-21", v: 3 }, { date: "09-22", v: 3 }, { date: "09-23", v: 3, today: true },
-    ],
-    cabinet: [
-      { date: "09-17", v: 2 }, { date: "09-18", v: 2 }, { date: "09-19", v: 3 },
-      { date: "09-20", v: 3 }, { date: "09-21", v: 3 }, { date: "09-22", v: 4 }, { date: "09-23", v: 4, today: true },
-    ],
-    rider: [
-      { date: "09-17", v: 1 }, { date: "09-18", v: 2 }, { date: "09-19", v: 2 },
-      { date: "09-20", v: 2 }, { date: "09-21", v: 3 }, { date: "09-22", v: 3 }, { date: "09-23", v: 3, today: true },
-    ],
-    maint: [
-      { date: "09-17", v: 0 }, { date: "09-18", v: 1 }, { date: "09-19", v: 1 },
-      { date: "09-20", v: 1 }, { date: "09-21", v: 2 }, { date: "09-22", v: 2 }, { date: "09-23", v: 2, today: true },
-    ],
-    orphan: [
-      { date: "09-17", v: 6 }, { date: "09-18", v: 7 }, { date: "09-19", v: 8 },
-      { date: "09-20", v: 9 }, { date: "09-21", v: 11 }, { date: "09-22", v: 12 }, { date: "09-23", v: 14, today: true },
-    ],
-  };
+  const TRENDS = {};
+  NODES.forEach((n) => {
+    TRENDS[n.id] = n.kind === "material"
+      ? genTrend(n.id, 18.6, { amp: 0.08, decimals: 1 })
+      : genTrend(n.id, n.bat, {});
+  });
+
+  const ABNORMAL_TRENDS = {};
+  NODES.forEach((n) => {
+    ABNORMAL_TRENDS[n.id] = genTrend(n.id + ":ab", n.exceptions, { amp: 1.2 });
+  });
 
   const WIDE = [
     { sn: "BAT09A12200", node: "wip", woId: "WO-0920-033", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },

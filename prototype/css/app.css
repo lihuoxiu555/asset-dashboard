@@ -694,6 +694,22 @@ button.dt-node { border: 0; cursor: pointer; }
 }
 .trend-fab:active { transform: scale(.94); background: var(--brand-soft); }
 
+/* 趋势弹窗：范围切换 + 长图横向滚动 */
+.chip-select {
+  padding: 0 8px;
+  max-width: 112px;
+  color: var(--muted);
+}
+.chip-select.on {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+.trend-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 430px) {
   .desktop-wrap { padding: 0; }
   .desktop-note { display: none; }
