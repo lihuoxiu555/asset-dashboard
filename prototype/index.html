@@ -4,19 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>资产看板 · H5 原型</title>
-  <link rel="stylesheet" href="./css/app.css?v=20260924a">
+  <link rel="stylesheet" href="./css/app.css?v=20260924r">
 </head>
 <body>
   <div class="desktop-wrap">
-    <p class="desktop-note">一页：九节点多日对比。所有/异常双 tab，左滑看近 7 天；趋势弹窗近 7 日 / 近 30 日 / 按月。地域是城市不是省。无 GPS。</p>
-    <div class="phone">
-      <div class="status-bar"><span>09:22</span><span></span><span>LTE</span></div>
-      <div class="app-stage" id="app"></div>
-      <div id="overlay"></div>
-      <div id="toast" class="toast" hidden></div>
+    <aside class="changelog-panel" aria-label="更新记录">
+      <div class="changelog-hd-bar">
+        <div>
+          <span class="changelog-eyebrow">版本迭代</span>
+          <h2>更新记录</h2>
+        </div>
+        <span class="changelog-pill" id="changelog-latest">V0.2</span>
+      </div>
+      <div id="changelog-root" class="changelog-list"></div>
+    </aside>
+    <div class="phone-col">
+      <p class="desktop-note">一页：九节点多日对比。所有/异常双 tab，左滑看近 7 天；趋势弹窗近 7 日 / 近 30 日 / 按月。地域是城市不是省。无 GPS。</p>
+      <div class="phone">
+        <div class="status-bar"><span>09:22</span><span></span><span>LTE</span></div>
+        <div class="app-stage" id="app"></div>
+        <div id="overlay"></div>
+        <div id="toast" class="toast" hidden></div>
+      </div>
     </div>
   </div>
-  <script src="./js/mock.js?v=20260924a"></script>
-  <script src="./js/app.js?v=20260924a"></script>
+  <script src="./js/mock.js?v=20260924r"></script>
+  <script src="./js/app.js?v=20260924r"></script>
+  <script src="./js/changelog.js?v=20260924r"></script>
 </body>
 </html>

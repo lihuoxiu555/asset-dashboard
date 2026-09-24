@@ -62,11 +62,16 @@
     const t = title ? ` data-title="${title}"` : "";
     return `<button type="button" class="time-btn" data-open="trend" data-node="${nodeId}" data-dataset="${tab}"${t} aria-label="时间趋势">⏱</button>`;
   }
-  function nodeTabBar() {
-    const nodeTab = currentNodeTab();
+  function nodeTabBar(opts) {
+    opts = opts || {};
+    const lockAbn = !!opts.lockAbnormal;
+    const nodeTab = lockAbn ? "normal" : currentNodeTab();
+    const abnBtn = lockAbn
+      ? `<button type="button" class="seg seg-disabled" disabled aria-disabled="true" title="物料环节暂无异常">异常</button>`
+      : `<button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>`;
     return `<div class="seg-tabs" role="tablist">
       <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
-      <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
+      ${abnBtn}
     </div>`;
   }
   function nodeExStats(nodeId, city) {
@@ -83,34 +88,54 @@
       overdueBars: { 5: sc(base.overdueBars[5]), 7: sc(base.overdueBars[7]), 10: sc(base.overdueBars[10]) },
     };
   }
-  function abnormalCardsHtml(stats, extraQs) {
+  function abnormalCardsHtml(stats, extraQs, opts) {
+    opts = opts || {};
     const q = extraQs || "";
+    const naSet = new Set(opts.naTypes || []);
+    const hideSet = new Set(opts.hideTypes || []);
     const bars = stats.overdueBars || { 5: 0, 7: 0, 10: 0 };
+    const card = (type, label, value, tone, split, naHint) => {
+      if (hideSet.has(type)) return "";
+      if (naSet.has(type)) {
+        return `<div class="card card-na">
+          <label>${label}</label>
+          <strong class="tone-dash">--</strong>
+          <div class="split">${naHint}</div>
+        </div>`;
+      }
+      return `<div class="card clickable" data-go="#/exceptions?type=${type}${q}">
+        <label>${label}</label>
+        <strong class="${tone}">${value}</strong>
+        <div class="split">${split}</div>
+      </div>`;
+    };
+    const showOrphan = !hideSet.has("orphan");
+    const legend = naSet.has("overdue") && naSet.has("conflict")
+      ? "本环节无超期 / 多维冲突"
+      : (naSet.has("conflict")
+        ? (showOrphan ? "本环节无多维冲突 · 超期 5/7/10 · 点卡片查明细" : "本环节无多维冲突 · 超期 5/7/10 · 点超期查明细")
+        : (showOrphan
+          ? "从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细"
+          : "从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细"));
+    const grid = showOrphan ? "kpi-grid three home-kpi" : "kpi-grid home-kpi";
     return `
-      <div class="kpi-grid three home-kpi">
-        <div class="card clickable" data-go="#/exceptions?type=overdue${q}">
-          <label>超期</label>
-          <strong class="tone-yellow">${stats.overdue}</strong>
-          <div class="split">${bars[5] || 0} / ${bars[7] || 0} / ${bars[10] || 0}</div>
-        </div>
-        <div class="card clickable" data-go="#/exceptions?type=conflict${q}">
-          <label>多维冲突</label>
-          <strong class="tone-red">${stats.conflict}</strong>
-          <div class="split">同一 SN 去重</div>
-        </div>
-        <div class="card clickable" data-go="#/exceptions?type=orphan${q}">
-          <label>归属缺失</label>
-          <strong class="tone-red">${stats.orphan}</strong>
-          <div class="split">当前归属为空</div>
-        </div>
+      <div class="${grid}">
+        ${card("overdue", "超期", stats.overdue, "tone-yellow", `${bars[5] || 0} / ${bars[7] || 0} / ${bars[10] || 0}`, "本环节不存在")}
+        ${card("conflict", "多维冲突", stats.conflict, "tone-red", "同一 SN 去重", "本环节不存在")}
+        ${card("orphan", "归属缺失", stats.orphan, "tone-red", "当前归属为空", "本环节不存在")}
       </div>
-      <p class="section-legend" style="margin-top:8px">从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细</p>`;
+      <p class="section-legend" style="margin-top:8px">${legend}</p>`;
   }
   function nodeTabExtra(nodeId, city, legend) {
-    const tab = currentNodeTab();
+    const lockAbnormal = nodeId === "material";
+    const tab = lockAbnormal ? "normal" : currentNodeTab();
     const qs = nodeId ? "&node=" + nodeId + (city ? "&city=" + city : "") : "";
-    const cards = tab === "abnormal" ? abnormalCardsHtml(nodeExStats(nodeId, city), qs) : "";
-    return nodeTabBar() + cards + `<p class="section-legend">${legend}</p>`;
+    const naTypes = nodeId === "material"
+      ? ["overdue", "conflict"]
+      : ((nodeId === "wip" || nodeId === "orphan") ? ["conflict"] : []);
+    const hideTypes = nodeId === "orphan" ? [] : ["orphan"];
+    const cards = tab === "abnormal" ? abnormalCardsHtml(nodeExStats(nodeId, city), qs, { naTypes, hideTypes }) : "";
+    return nodeTabBar({ lockAbnormal }) + cards + `<p class="section-legend">${legend}</p>`;
   }
 
   function parseHash() {
@@ -326,41 +351,55 @@
     if (id === "material") {
       let mats = M.MATERIALS.slice();
       if (f.place) mats = mats.filter((r) => (r.name + r.place).includes(f.place));
-      const tab = currentNodeTab();
       $("#app").innerHTML = `
         ${topBar("物料", { back: "#/home", account: true })}
         <div class="page page-notab">
-          ${nodeHead(node, "工厂 · 关键件")}
-          ${nodeTabExtra("material", "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期")}
-          ${dateTableHtml(mats.map((r) => ({ name: r.name, seriesKey: "mat:" + r.id, kind: "material" })), tab, { nameLab: "物料" })}
+          ${nodeHead(node, "仅展示 BOM 单核心物料")}
+          ${nodeTabExtra("material", "", "每日在量 · 仅展示 BOM 单核心物料 · 左滑看更早日期")}
+          ${dateTableHtml(mats.map((r) => ({ name: r.name, seriesKey: "mat:" + r.id, kind: "material" })), "normal", { nameLab: "物料" })}
         </div>`;
       return;
     }
 
     if (id === "wip") {
-      if (!city) {
-        const tab = currentNodeTab();
-        const wos = state.demoEmpty ? [] : M.WORK_ORDERS.slice();
-        $("#app").innerHTML = `
-          ${topBar("生产中", { back: "#/home", account: true })}
-          <div class="page page-notab">
-            ${nodeHead(node, "一厂一线 · 按工单时长")}
-            ${nodeTabExtra("wip", "", tab === "abnormal" ? "每日未关闭异常数 · 点工单下钻 · 左滑看更早日期" : "每日在量 · 点工单下钻 · 左滑看更早日期")}
-            ${dateTableHtml(wos.map((w) => ({ name: w.id, go: "#/node/wip/" + w.id, seriesKey: "wo:" + w.id, kind: "battery" })), tab, { nameLab: "工单" })}
-          </div>`;
+      if (city) {
+        go("#/node/wip");
         return;
       }
-      renderSnList("wip", M.WIDE.filter((r) => r.node === "wip" && r.woId === city), city, "#/node/wip",
-        `<div class="card"><label>${city}</label><strong>${(M.WORK_ORDERS.find((w) => w.id === city) || {}).duration || "—"}</strong><div class="split">东莞一线 · 工单时长</div></div>`);
+      const tab = currentNodeTab();
+      const wos = state.demoEmpty ? [] : M.WORK_ORDERS.slice();
+      $("#app").innerHTML = `
+        ${topBar("生产中", { back: "#/home", account: true })}
+        <div class="page page-notab">
+          ${nodeHead(node, "一厂一线 · 按生产任务单时长")}
+          ${nodeTabExtra("wip", "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期 · 本节点只到生产任务单" : "每日在量 · 左滑看更早日期 · 本节点只到生产任务单")}
+          ${dateTableHtml(wos.map((w) => ({ name: w.id, seriesKey: "wo:" + w.id, kind: "battery" })), tab, { nameLab: "生产任务单" })}
+        </div>`;
+      return;
+    }
+
+    if (id === "factory") {
+      const tab = currentNodeTab();
+      const stocks = state.demoEmpty ? [] : M.FACTORY_STOCK.slice();
+      $("#app").innerHTML = `
+        ${topBar("工厂成品仓", { back: "#/home", account: true })}
+        <div class="page page-notab">
+          ${nodeHead(node, "读取库存信息 · 不拆 SN")}
+          ${nodeTabExtra("factory", "", tab === "abnormal" ? "每日未关闭异常数 · 读取库存信息 · 左滑看更早日期" : "每日库存 · 读取库存信息 · 左滑看更早日期")}
+          ${dateTableHtml(stocks.map((s) => ({ name: s.name, seriesKey: "stk:" + s.id, kind: "battery" })), tab, { nameLab: "库存" })}
+        </div>`;
       return;
     }
 
     if (id === "transit") {
       const tab = currentNodeTab();
-      renderSnList("transit", M.WIDE.filter((r) => r.node === "transit"), "在途", "#/home",
-        nodeHead(node, "发货截止日 → 今天") +
-        nodeTabExtra("transit", "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期") +
-        dateTableHtml([{ name: node.name, seriesKey: "transit", kind: "battery" }], tab, { nameLab: "节点" }));
+      $("#app").innerHTML = `
+        ${topBar("在途", { back: "#/home", account: true })}
+        <div class="page page-notab">
+          ${nodeHead(node, "发货截止日 → 今天 · 本节点只到本层")}
+          ${nodeTabExtra("transit", "", tab === "abnormal" ? "每日未关闭异常数 · 本节点只到本层 · 左滑看更早日期" : "每日在量 · 本节点只到本层 · 左滑看更早日期")}
+          ${dateTableHtml([{ name: node.name, seriesKey: "transit", kind: "battery" }], tab, { nameLab: "节点" })}
+        </div>`;
       return;
     }
 
@@ -389,15 +428,26 @@
     if (M.MULTI[id]) {
       const meta = M.MULTI[id];
       const tab = currentNodeTab();
+      if (meta.stopAtCity && (city || siteId)) {
+        go("#/node/" + id);
+        return;
+      }
+      if (meta.stopAtSite && siteId) {
+        go("#/node/" + id + "/" + city);
+        return;
+      }
       if (!city) {
+        const cityHint = meta.stopAtCity
+          ? (tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期 · 本节点只到城市" : "每日在量 · 左滑看更早日期 · 本节点只到城市")
+          : (tab === "abnormal" ? "每日未关闭异常数 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期" : "每日在量 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期");
         $("#app").innerHTML = `
           ${topBar(node.name, { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "城市按资产数降序")}
-            ${nodeTabExtra(id, "", tab === "abnormal" ? "每日未关闭异常数 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期" : "每日在量 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期")}
+            ${nodeTabExtra(id, "", cityHint)}
             ${dateTableHtml(citiesByAsset(id).map((r) => ({
               name: r.name,
-              go: `#/node/${id}/${r.id}`,
+              go: meta.stopAtCity ? "" : `#/node/${id}/${r.id}`,
               seriesKey: "city:" + id + ":" + r.id,
               kind: "battery",
             })), tab, { nameLab: "城市" })}
@@ -418,10 +468,12 @@
               </div>
               ${timeBtn("city:" + id + ":" + city, cityName(city))}
             </div>
-            ${nodeTabExtra(id, city, tab === "abnormal" ? "每日未关闭异常数 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期" : "每日在量 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期")}
+            ${nodeTabExtra(id, city, meta.stopAtSite
+              ? (tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期 · 本节点只到" + (meta.stopLabel || meta.siteLabel) : "每日在量 · 左滑看更早日期 · 本节点只到" + (meta.stopLabel || meta.siteLabel))
+              : (tab === "abnormal" ? "每日未关闭异常数 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期" : "每日在量 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期"))}
             ${dateTableHtml(sites.map((s) => ({
               name: s.name,
-              go: `#/node/${id}/${city}/${s.id}`,
+              go: meta.stopAtSite ? "" : `#/node/${id}/${city}/${s.id}`,
               seriesKey: "site:" + s.id,
               kind: "battery",
             })), tab, { nameLab: meta.siteLabel })}
@@ -891,6 +943,7 @@
       renderExceptions();
     }
     if (act === "node-tab") {
+      if (actEl.disabled || actEl.getAttribute("aria-disabled") === "true") return;
       state.pf.home.nodeTab = actEl.getAttribute("data-id") === "abnormal" ? "abnormal" : "normal";
       render();
       return;

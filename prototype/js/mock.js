@@ -10,10 +10,10 @@ window.AssetBoardMock = (function () {
   ];
 
   const MULTI = {
-    front: { unit: "仓", siteLabel: "前置仓" },
-    cabinet: { unit: "柜", siteLabel: "电柜" },
-    rider: { unit: "人", siteLabel: "小哥" },
-    maint: { unit: "人", siteLabel: "运维" },
+    front: { unit: "仓", siteLabel: "前置仓", stopAtSite: true, stopLabel: "仓库" },
+    cabinet: { unit: "柜", siteLabel: "站点", stopAtSite: true, stopLabel: "站点" },
+    rider: { unit: "人", siteLabel: "小哥", stopAtCity: true },
+    maint: { unit: "人", siteLabel: "运维", stopAtCity: true },
   };
 
   const NODE_CITIES = {
@@ -45,13 +45,13 @@ window.AssetBoardMock = (function () {
   ];
 
   const NODES = [
-    { id: "material", name: "物料", kind: "material", primary: "18.60 万颗", split: "关键件 · 不折成品 · 无批次", amount: 86.0, exceptions: 0 },
-    { id: "wip", name: "生产中", kind: "battery", bat: 86, wo: 2, split: "一厂一线 · 工单时长", amount: 43.0, exceptions: 1 },
-    { id: "factory", name: "工厂成品仓", kind: "battery", bat: 210, split: "工厂", amount: 105.0, exceptions: 1 },
-    { id: "transit", name: "在途", kind: "battery", bat: 80, split: "起止日 · 累计天数", amount: 40.0, exceptions: 2 },
+    { id: "material", name: "物料", kind: "material", primary: "18.60 万颗", split: "仅展示 BOM 单核心物料 · 不折成品", amount: 86.0, exceptions: 0 },
+    { id: "wip", name: "生产中", kind: "battery", bat: 86, wo: 2, split: "一厂一线 · 生产任务单时长", amount: 43.0, exceptions: 1 },
+    { id: "factory", name: "工厂成品仓", kind: "battery", bat: 210, split: "读取库存信息 · 不拆 SN", amount: 105.0, exceptions: 0 },
+    { id: "transit", name: "在途", kind: "battery", bat: 80, split: "起止日 · 累计天数 · 只到本层", amount: 40.0, exceptions: 2 },
     { id: "front", name: "前置仓", kind: "battery", multi: true, bat: 290, split: "多仓 · 下钻看城市", amount: 145.0, exceptions: 3 },
-    { id: "cabinet", name: "运营域电柜中", kind: "battery", multi: true, bat: 1680, split: "多柜 · 下钻看城市", amount: 840.0, exceptions: 4 },
-    { id: "rider", name: "小哥使用中", kind: "battery", multi: true, bat: 420, split: "多人 · 下钻看城市", amount: 210.0, exceptions: 3 },
+    { id: "cabinet", name: "运营域电柜中", kind: "battery", multi: true, bat: 1680, split: "多柜 · 下钻看城市", amount: 840.0, exceptions: 3 },
+    { id: "rider", name: "小哥使用中", kind: "battery", multi: true, bat: 420, split: "多人 · 下钻看城市", amount: 210.0, exceptions: 2 },
     { id: "maint", name: "运维持有", kind: "battery", multi: true, bat: 36, split: "多人 · 下钻看城市", amount: 18.0, exceptions: 2 },
     { id: "orphan", name: "无归属", kind: "battery", multi: true, bat: 14, split: "90 天最近归属 · 无 GPS", amount: 7.0, exceptions: 14 },
   ];
@@ -73,6 +73,11 @@ window.AssetBoardMock = (function () {
   const WORK_ORDERS = [
     { id: "WO-0920-033", line: "东莞一线", start: "2026-09-16 10:00", end: "进行中", duration: "7 天 2 时", bat: 40 },
     { id: "WO-0922-011", line: "东莞一线", start: "2026-09-22 08:00", end: "进行中", duration: "1 天 1 时", bat: 46 },
+  ];
+
+  const FACTORY_STOCK = [
+    { id: "loc-a", name: "A区 · B48", bat: 180, place: "东莞成品仓" },
+    { id: "loc-b", name: "B区 · B48", bat: 30, place: "东莞成品仓" },
   ];
 
   // 多日趋势：生成 91 天（06-25 ~ 09-23）确定性序列，末日锚定当前在量/异常数
@@ -147,6 +152,11 @@ window.AssetBoardMock = (function () {
     TRENDS[key] = genTrend(key, w.bat, {});
     ABNORMAL_TRENDS[key] = genTrend(key + ":ab", 1, { amp: 1 });
   });
+  FACTORY_STOCK.forEach((s) => {
+    const key = "stk:" + s.id;
+    TRENDS[key] = genTrend(key, s.bat, {});
+    ABNORMAL_TRENDS[key] = genTrend(key + ":ab", 0, {});
+  });
 
   const WIDE = [
     { sn: "BAT09A12200", node: "wip", woId: "WO-0920-033", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },
@@ -183,24 +193,24 @@ window.AssetBoardMock = (function () {
     { id: "EX-0922-01", type: "conflict", typeName: "多维冲突", scene: "", sn: "BAT09A14002", nodes: "前置仓 + 运营域电柜中", place: "南山仓 / 福田站", city: "sz", found: "09-22", status: "open", idle: 6 },
     { id: "EX-0923-11", type: "conflict", typeName: "多维冲突", scene: "", sn: "BAT09A18110", nodes: "前置仓 + 小哥使用中", place: "福田仓", city: "sz", found: "09-23", status: "open", idle: 2 },
     { id: "EX-0923-12", type: "conflict", typeName: "多维冲突", scene: "", sn: "BAT09A16920", nodes: "电柜中 + 运维持有", place: "滨江站", city: "hz", found: "09-23", status: "open", idle: 1 },
-    { id: "EX-0922-02", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A17660", nodes: "在途", place: "东莞→南山", city: "", found: "09-22", status: "open", idle: 5 },
+    { id: "EX-0922-02", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A17660", nodes: "无归属", place: "东莞→南山", city: "", found: "09-22", status: "open", idle: 5 },
     { id: "EX-0922-08", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A05502", nodes: "无归属", place: "最近归属 深圳南山前置仓", city: "sz", found: "09-20", status: "open", idle: 12 },
     { id: "EX-0922-04", type: "overdue", typeName: "超期", scene: "transit", sceneName: "在途超期", sn: "BAT09A08812", nodes: "在途", place: "东莞→浦东", city: "", found: "09-22", status: "open", idle: 7 },
     { id: "EX-0922-05", type: "overdue", typeName: "超期", scene: "slot", sceneName: "电柜格口未使用", sn: "BAT09A18003", nodes: "运营域电柜中", place: "福田站 格口 8", city: "sz", found: "09-21", status: "open", idle: 8 },
     { id: "EX-0922-06", type: "overdue", typeName: "超期", scene: "rider", sceneName: "小哥持有未返柜", sn: "BAT09A07705", nodes: "小哥使用中", place: "浦东站", city: "sh", found: "09-21", status: "open", idle: 9 },
     { id: "EX-0922-07", type: "overdue", typeName: "超期", scene: "maint", sceneName: "运维持有未还", sn: "BAT09A06611", nodes: "运维持有", place: "深圳巡检车", city: "sz", found: "09-21", status: "open", idle: 6 },
     { id: "EX-0920-10", type: "overdue", typeName: "超期", scene: "warehouse", sceneName: "仓库存放超期", sn: "BAT09A15501", nodes: "前置仓", place: "杭州滨江前置仓", city: "hz", found: "09-20", status: "open", idle: 6 },
-    { id: "EX-0918-03", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A07001", nodes: "工厂成品仓", place: "已关闭", city: "", found: "09-18", status: "closed", idle: 0 },
+    { id: "EX-0918-03", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A07001", nodes: "无归属", place: "已关闭", city: "", found: "09-18", status: "closed", idle: 0 },
   ];
 
   const NODE_EX_STATS = {
     material: { overdue: 0, conflict: 0, orphan: 0, overdueBars: { 5: 0, 7: 0, 10: 0 } },
     wip: { overdue: 1, conflict: 0, orphan: 0, overdueBars: { 5: 1, 7: 0, 10: 0 } },
-    factory: { overdue: 0, conflict: 0, orphan: 1, overdueBars: { 5: 0, 7: 0, 10: 0 } },
-    transit: { overdue: 2, conflict: 0, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 0 } },
+    factory: { overdue: 0, conflict: 0, orphan: 0, overdueBars: { 5: 0, 7: 0, 10: 0 } },
+    transit: { overdue: 2, conflict: 0, orphan: 0, overdueBars: { 5: 2, 7: 1, 10: 0 } },
     front: { overdue: 2, conflict: 2, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 0 } },
-    cabinet: { overdue: 3, conflict: 1, orphan: 1, overdueBars: { 5: 3, 7: 2, 10: 1 } },
-    rider: { overdue: 2, conflict: 1, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 1 } },
+    cabinet: { overdue: 3, conflict: 1, orphan: 0, overdueBars: { 5: 3, 7: 2, 10: 1 } },
+    rider: { overdue: 2, conflict: 1, orphan: 0, overdueBars: { 5: 2, 7: 1, 10: 1 } },
     maint: { overdue: 1, conflict: 1, orphan: 0, overdueBars: { 5: 1, 7: 1, 10: 0 } },
     orphan: { overdue: 0, conflict: 0, orphan: 14, overdueBars: { 5: 0, 7: 0, 10: 0 } },
   };
@@ -230,5 +240,5 @@ window.AssetBoardMock = (function () {
     ],
   };
 
-  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, TRENDS, ABNORMAL_TRENDS, NODE_EX_STATS, WIDE, EXCEPTIONS, TRAILS };
+  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, FACTORY_STOCK, TRENDS, ABNORMAL_TRENDS, NODE_EX_STATS, WIDE, EXCEPTIONS, TRAILS };
 })();
