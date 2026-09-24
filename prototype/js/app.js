@@ -234,31 +234,45 @@
     if (state.demoEmpty) return emptyBox("这一节点暂时没有记录");
     if (!rows.length) return emptyBox("这一节点暂时没有记录");
     const data = tab === "abnormal" ? M.ABNORMAL_TRENDS : M.TRENDS;
-    const last7 = (M.TRENDS.wip || []).slice(-7);
-    const today = last7[last7.length - 1].date;
-    const history = last7.slice(0, -1).reverse().map((p) => p.date);
+    const days = opts.days || 7;
+    const hideTrend = opts.hideTrend !== false;
+    const drillOn = opts.drillOn || "name";
+    const slice = (M.TRENDS.wip || []).slice(-days);
+    const today = slice[slice.length - 1].date;
+    const history = slice.slice(0, -1).reverse().map((p) => p.date);
     const nameLab = opts.nameLab || "节点";
-    const head = `<div class="dt-row dt-head">
+    const cols = hideTrend
+      ? `104px 64px repeat(${history.length}, 56px)`
+      : `104px 64px repeat(${history.length}, 56px) 56px`;
+    const rowStyle = `style="grid-template-columns:${cols};min-width:${104 + 64 + history.length * 56 + (hideTrend ? 0 : 56)}px"`;
+    const trendHead = hideTrend ? "" : `<div class="dt-cell dt-trend">趋势</div>`;
+    const head = `<div class="dt-row dt-head" ${rowStyle}>
       <div class="dt-cell dt-node">${nameLab}</div>
       <div class="dt-cell dt-today">今日<small>${today}</small></div>
       ${history.map((d) => `<div class="dt-cell dt-day">${d}</div>`).join("")}
-      <div class="dt-cell dt-trend">趋势</div>
+      ${trendHead}
     </div>`;
     const body = rows.map((r) => {
       const byDate = {};
       (data[r.seriesKey] || []).forEach((p) => { byDate[p.date] = p.v; });
-      const nameCell = r.go
+      const nameClick = r.go && drillOn === "name";
+      const todayClick = r.go && drillOn === "today";
+      const nameCell = nameClick
         ? `<button type="button" class="dt-cell dt-node dt-node-link" data-go="${r.go}">${r.name}</button>`
         : `<div class="dt-cell dt-node">${r.name}</div>`;
-      return `<div class="dt-row">
-        ${nameCell}
-        <div class="dt-cell dt-today">${fmtQty(r, byDate[today])}</div>
-        ${history.map((d) => `<div class="dt-cell dt-day">${fmtQty(r, byDate[d])}</div>`).join("")}
-        <div class="dt-cell dt-trend">
+      const todayCell = todayClick
+        ? `<button type="button" class="dt-cell dt-today dt-today-link" data-go="${r.go}">${fmtQty(r, byDate[today])}</button>`
+        : `<div class="dt-cell dt-today">${fmtQty(r, byDate[today])}</div>`;
+      const trendCell = hideTrend ? "" : `<div class="dt-cell dt-trend">
           <button type="button" class="trend-fab" data-open="trend" data-node="${r.seriesKey}" data-dataset="${tab}" data-title="${r.name}" aria-label="${r.name} 多日趋势">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><polyline points="3,17 8,11 12,14 21,5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="5" r="1.8" fill="currentColor"/></svg>
           </button>
-        </div>
+        </div>`;
+      return `<div class="dt-row" ${rowStyle}>
+        ${nameCell}
+        ${todayCell}
+        ${history.map((d) => `<div class="dt-cell dt-day">${fmtQty(r, byDate[d])}</div>`).join("")}
+        ${trendCell}
       </div>`;
     }).join("");
     return `<div class="dt-wrap">${head}${body}</div>`;
@@ -269,7 +283,7 @@
       go: "#/node/" + n.id,
       seriesKey: n.id,
       kind: n.kind,
-    })), tab, { nameLab: "节点" });
+    })), tab, { nameLab: "节点", days: 30, hideTrend: true, drillOn: "today" });
   }
 
   function renderHome() {
@@ -280,24 +294,36 @@
     }
     const nodeTab = state.pf.home.nodeTab === "abnormal" ? "abnormal" : "normal";
     const abnormalCards = abnormalCardsHtml(h);
+    const mat = M.NODES.find((n) => n.id === "material") || {};
     $("#app").innerHTML = `
       ${topBar("", { home: true, account: true })}
       <div class="page page-notab">
         <div class="home-top">
-          <div class="kpi-grid three home-kpi">
-            <div class="card"><label>成品总数</label><strong>${h.finishedTotal} 块</strong></div>
-            <div class="card clickable" data-go="#/exceptions"><label>异常</label><strong class="tone-red">${h.abnormal}</strong></div>
-            <div class="card"><label>金额</label><strong>${money(h.amountTotal)}</strong></div>
+          <div class="kpi-grid home-kpi">
+            <div class="card">
+              <label>成品总数</label>
+              <div class="kpi-pair">
+                <div><em>数量</em><strong>${h.finishedTotal} 块</strong></div>
+                <div><em>金额</em><strong>${money(h.amountTotal)}</strong></div>
+              </div>
+            </div>
+            <div class="card">
+              <label>核心物料</label>
+              <div class="kpi-pair">
+                <div><em>数量</em><strong>${mat.primary || "—"}</strong></div>
+                <div><em>金额</em><strong>${money(mat.amount)}</strong></div>
+              </div>
+            </div>
           </div>
-          <p class="section-legend">金额 = SN × 型号 × BOM 理论值</p>
+          <p class="section-legend">成品金额 = SN × 型号 × BOM 理论值 · 物料仅 BOM 核心件</p>
         </div>
         <div class="section-title">九个节点（多日对比）</div>
         <div class="seg-tabs" role="tablist">
-          <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
-          <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
+          <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有 ${h.finishedTotal}</button>
+          <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常 ${h.abnormal}</button>
         </div>
         ${nodeTab === "abnormal" ? abnormalCards : ""}
-        <p class="section-legend">${nodeTab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点节点名下钻 · 左滑看更早日期</p>
+        <p class="section-legend">${nodeTab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点今日数下钻 · 左滑看近 30 日</p>
         ${nodeTableHtml(nodeTab)}
       </div>`;
   }
@@ -335,7 +361,6 @@
         <strong>${node.kind === "material" ? node.primary : node.bat + " 块"}</strong>
         <div class="split">${extraSplit || node.split} · ${money(node.amount)}</div>
       </div>
-      ${timeBtn(node.id, node.name)}
     </div>`;
   }
 
@@ -466,7 +491,6 @@
                 <strong>${(M.NODE_CITIES[id] || {})[city] || 0} 块</strong>
                 <div class="split">${sites.length} ${meta.unit}</div>
               </div>
-              ${timeBtn("city:" + id + ":" + city, cityName(city))}
             </div>
             ${nodeTabExtra(id, city, meta.stopAtSite
               ? (tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期 · 本节点只到" + (meta.stopLabel || meta.siteLabel) : "每日在量 · 左滑看更早日期 · 本节点只到" + (meta.stopLabel || meta.siteLabel))
@@ -487,7 +511,6 @@
           <strong>${site ? site.bat : 0} 块</strong>
           <div class="split">${cityName(city)}</div>
         </div>
-        ${timeBtn("site:" + siteId, site ? site.name : siteId)}
       </div>` + nodeTabExtra(id, city, tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期") +
         dateTableHtml([{ name: site ? site.name : siteId, seriesKey: "site:" + siteId, kind: "battery" }], tab, { nameLab: meta.siteLabel });
       renderSnList(id, M.WIDE.filter((r) => r.node === id && r.siteId === siteId), (site ? site.name : node.name), `#/node/${id}/${city}`, extra);
