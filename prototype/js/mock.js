@@ -123,6 +123,31 @@ window.AssetBoardMock = (function () {
     ABNORMAL_TRENDS[n.id] = genTrend(n.id + ":ab", n.exceptions, { amp: 1.2 });
   });
 
+  Object.keys(NODE_CITIES).forEach((nodeId) => {
+    Object.keys(NODE_CITIES[nodeId]).forEach((cid) => {
+      const key = "city:" + nodeId + ":" + cid;
+      const todayV = NODE_CITIES[nodeId][cid];
+      TRENDS[key] = genTrend(key, todayV, {});
+      ABNORMAL_TRENDS[key] = genTrend(key + ":ab", Math.max(0, Math.round(todayV * 0.02)), { amp: 1.1 });
+    });
+  });
+  SITES.forEach((s) => {
+    const key = "site:" + s.id;
+    TRENDS[key] = genTrend(key, s.bat, {});
+    ABNORMAL_TRENDS[key] = genTrend(key + ":ab", s.bat >= 100 ? 2 : 1, { amp: 1 });
+  });
+  MATERIALS.forEach((m) => {
+    const key = "mat:" + m.id;
+    const todayV = parseFloat(String(m.qty).replace(/[^\d.]/g, "")) || 0;
+    TRENDS[key] = genTrend(key, todayV, { amp: 0.08, decimals: 1 });
+    ABNORMAL_TRENDS[key] = genTrend(key + ":ab", 0, {});
+  });
+  WORK_ORDERS.forEach((w) => {
+    const key = "wo:" + w.id;
+    TRENDS[key] = genTrend(key, w.bat, {});
+    ABNORMAL_TRENDS[key] = genTrend(key + ":ab", 1, { amp: 1 });
+  });
+
   const WIDE = [
     { sn: "BAT09A12200", node: "wip", woId: "WO-0920-033", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },
     { sn: "BAT09A12210", node: "wip", woId: "WO-0922-011", ownerType: "warehouse", owner: "东莞工厂", place: "东莞一线", model: "B48", amount: 0.50 },

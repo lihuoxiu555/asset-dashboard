@@ -54,8 +54,20 @@
     const counts = M.NODE_CITIES[nodeId] || {};
     return M.CITIES.slice().sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
   }
-  function timeBtn(nodeId) {
-    return `<button type="button" class="time-btn" data-open="trend" data-node="${nodeId}" aria-label="时间趋势">⏱</button>`;
+  function currentNodeTab() {
+    return state.pf.home.nodeTab === "abnormal" ? "abnormal" : "normal";
+  }
+  function timeBtn(nodeId, title) {
+    const tab = currentNodeTab();
+    const t = title ? ` data-title="${title}"` : "";
+    return `<button type="button" class="time-btn" data-open="trend" data-node="${nodeId}" data-dataset="${tab}"${t} aria-label="时间趋势">⏱</button>`;
+  }
+  function nodeTabBar() {
+    const nodeTab = currentNodeTab();
+    return `<div class="seg-tabs" role="tablist">
+      <button type="button" class="seg ${nodeTab === "normal" ? "on" : ""}" data-act="node-tab" data-id="normal" role="tab">所有</button>
+      <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
+    </div>`;
   }
 
   function parseHash() {
@@ -149,34 +161,47 @@
     return n.kind === "material" ? `<b>${v}</b><small>万</small>` : `<b>${v}</b>`;
   }
 
-  function nodeTableHtml(tab) {
+  function dateTableHtml(rows, tab, opts) {
+    opts = opts || {};
     if (state.demoEmpty) return emptyBox("这一节点暂时没有记录");
-    const abnormal = tab === "abnormal";
-    const data = abnormal ? M.ABNORMAL_TRENDS : M.TRENDS;
+    if (!rows.length) return emptyBox("这一节点暂时没有记录");
+    const data = tab === "abnormal" ? M.ABNORMAL_TRENDS : M.TRENDS;
     const last7 = (M.TRENDS.wip || []).slice(-7);
     const today = last7[last7.length - 1].date;
     const history = last7.slice(0, -1).reverse().map((p) => p.date);
+    const nameLab = opts.nameLab || "节点";
     const head = `<div class="dt-row dt-head">
-      <div class="dt-cell dt-node">节点</div>
+      <div class="dt-cell dt-node">${nameLab}</div>
       <div class="dt-cell dt-today">今日<small>${today}</small></div>
       ${history.map((d) => `<div class="dt-cell dt-day">${d}</div>`).join("")}
       <div class="dt-cell dt-trend">趋势</div>
     </div>`;
-    const rows = M.NODES.map((n) => {
+    const body = rows.map((r) => {
       const byDate = {};
-      (data[n.id] || []).forEach((p) => { byDate[p.date] = p.v; });
+      (data[r.seriesKey] || []).forEach((p) => { byDate[p.date] = p.v; });
+      const nameCell = r.go
+        ? `<button type="button" class="dt-cell dt-node dt-node-link" data-go="${r.go}">${r.name}</button>`
+        : `<div class="dt-cell dt-node">${r.name}</div>`;
       return `<div class="dt-row">
-        <button type="button" class="dt-cell dt-node dt-node-link" data-go="#/node/${n.id}">${n.name}</button>
-        <div class="dt-cell dt-today">${fmtQty(n, byDate[today])}</div>
-        ${history.map((d) => `<div class="dt-cell dt-day">${fmtQty(n, byDate[d])}</div>`).join("")}
+        ${nameCell}
+        <div class="dt-cell dt-today">${fmtQty(r, byDate[today])}</div>
+        ${history.map((d) => `<div class="dt-cell dt-day">${fmtQty(r, byDate[d])}</div>`).join("")}
         <div class="dt-cell dt-trend">
-          <button type="button" class="trend-fab" data-open="trend" data-node="${n.id}" data-dataset="${tab}" aria-label="${n.name} 多日趋势">
+          <button type="button" class="trend-fab" data-open="trend" data-node="${r.seriesKey}" data-dataset="${tab}" data-title="${r.name}" aria-label="${r.name} 多日趋势">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><polyline points="3,17 8,11 12,14 21,5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="5" r="1.8" fill="currentColor"/></svg>
           </button>
         </div>
       </div>`;
     }).join("");
-    return `<div class="dt-wrap">${head}${rows}</div>`;
+    return `<div class="dt-wrap">${head}${body}</div>`;
+  }
+  function nodeTableHtml(tab) {
+    return dateTableHtml(M.NODES.map((n) => ({
+      name: n.name,
+      go: "#/node/" + n.id,
+      seriesKey: n.id,
+      kind: n.kind,
+    })), tab, { nameLab: "节点" });
   }
 
   function renderHome() {
@@ -261,7 +286,7 @@
         <strong>${node.kind === "material" ? node.primary : node.bat + " 块"}</strong>
         <div class="split">${extraSplit || node.split} · ${money(node.amount)}</div>
       </div>
-      ${timeBtn(node.id)}
+      ${timeBtn(node.id, node.name)}
     </div>`;
   }
 
@@ -275,37 +300,31 @@
     const f = state.pf.node || {};
 
     if (id === "material") {
-      let rows = M.MATERIALS.slice();
-      if (f.place) rows = rows.filter((r) => (r.name + r.place).includes(f.place));
-      if (state.demoEmpty) rows = [];
-      const list = rows.length ? rows.map((r) => `
-        <div class="row">
-          <div class="h"><b>${r.name}</b><span class="pill">${r.id}</span></div>
-          <div class="d">${r.qty} · ${money(r.amount)} · ${r.place}<br>关键件 · 不折成品 · 一期无批次追踪</div>
-        </div>`).join("") : emptyBox("这一节点暂时没有记录");
+      let mats = M.MATERIALS.slice();
+      if (f.place) mats = mats.filter((r) => (r.name + r.place).includes(f.place));
+      const tab = currentNodeTab();
       $("#app").innerHTML = `
         ${topBar("物料", { back: "#/home", account: true })}
         <div class="page page-notab">
           ${nodeHead(node, "工厂 · 关键件")}
-          <div class="list" style="margin-top:8px">${list}</div>
+          ${nodeTabBar()}
+          <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>
+          ${dateTableHtml(mats.map((r) => ({ name: r.name, seriesKey: "mat:" + r.id, kind: "material" })), tab, { nameLab: "物料" })}
         </div>`;
       return;
     }
 
     if (id === "wip") {
       if (!city) {
+        const tab = currentNodeTab();
         const wos = state.demoEmpty ? [] : M.WORK_ORDERS.slice();
-        const list = wos.length ? wos.map((w) => `
-          <button class="stage-row" data-go="#/node/wip/${w.id}">
-            <div><b>${w.id}</b><small>${w.line} · ${w.start} → ${w.end}</small></div>
-            <div class="metric">${w.duration}<small>${w.bat} 块</small></div>
-          </button>`).join("") : emptyBox("这一节点暂时没有记录");
         $("#app").innerHTML = `
           ${topBar("生产中", { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "一厂一线 · 按工单时长")}
-            <div class="muted" style="margin:8px 2px">开始到结束的持续时间，不是块数换算</div>
-            <div class="funnel">${list}</div>
+            ${nodeTabBar()}
+            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点工单下钻 · 左滑看更早日期</p>
+            ${dateTableHtml(wos.map((w) => ({ name: w.id, go: "#/node/wip/" + w.id, seriesKey: "wo:" + w.id, kind: "battery" })), tab, { nameLab: "工单" })}
           </div>`;
         return;
       }
@@ -315,26 +334,29 @@
     }
 
     if (id === "transit") {
+      const tab = currentNodeTab();
       renderSnList("transit", M.WIDE.filter((r) => r.node === "transit"), "在途", "#/home",
-        nodeHead(node, "发货截止日 → 今天"));
+        nodeHead(node, "发货截止日 → 今天") + nodeTabBar() +
+        `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+        dateTableHtml([{ name: node.name, seriesKey: "transit", kind: "battery" }], tab, { nameLab: "节点" }));
       return;
     }
 
     if (id === "orphan") {
       if (!city) {
-        const rows = citiesByAsset("orphan").map((r) => {
-          const n = (M.NODE_CITIES.orphan || {})[r.id] || 0;
-          return `<button class="stage-row" data-go="#/node/orphan/${r.id}">
-            <div><b>${r.name}</b><small>90 天最近归属</small></div>
-            <div class="metric">${n} 块</div>
-          </button>`;
-        }).join("");
+        const tab = currentNodeTab();
         $("#app").innerHTML = `
           ${topBar("无归属", { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "城市按资产数降序 · 无 GPS")}
-            <div class="muted" style="margin:8px 2px">先选城市。查找窗口 90 天最近归属，不做 GPS 展示</div>
-            <div class="funnel">${state.demoEmpty ? emptyBox("这一节点暂时没有记录") : rows}</div>
+            ${nodeTabBar()}
+            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点城市下钻 · 左滑看更早日期 · 无 GPS</p>
+            ${dateTableHtml(citiesByAsset("orphan").map((r) => ({
+              name: r.name,
+              go: "#/node/orphan/" + r.id,
+              seriesKey: "city:orphan:" + r.id,
+              kind: "battery",
+            })), tab, { nameLab: "城市" })}
           </div>`;
         return;
       }
@@ -345,48 +367,68 @@
 
     if (M.MULTI[id]) {
       const meta = M.MULTI[id];
+      const tab = currentNodeTab();
       if (!city) {
-        const rows = citiesByAsset(id).map((r) => {
-          const n = (M.NODE_CITIES[id] || {})[r.id] || 0;
-          const sites = M.SITES.filter((s) => s.node === id && s.city === r.id).length;
-          return `<button class="stage-row" data-go="#/node/${id}/${r.id}">
-            <div><b>${r.name}</b><small>${sites} ${meta.unit}</small></div>
-            <div class="metric">${n} 块</div>
-          </button>`;
-        }).join("");
         $("#app").innerHTML = `
           ${topBar(node.name, { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "城市按资产数降序")}
-            <div class="muted" style="margin:8px 2px">先选城市，再看${meta.siteLabel}。无省级汇总</div>
-            <div class="funnel">${state.demoEmpty ? emptyBox("这一节点暂时没有记录") : rows}</div>
+            ${nodeTabBar()}
+            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点城市下钻看${meta.siteLabel} · 左滑看更早日期</p>
+            ${dateTableHtml(citiesByAsset(id).map((r) => ({
+              name: r.name,
+              go: `#/node/${id}/${r.id}`,
+              seriesKey: "city:" + id + ":" + r.id,
+              kind: "battery",
+            })), tab, { nameLab: "城市" })}
           </div>`;
         return;
       }
       if (!siteId) {
         let sites = M.SITES.filter((s) => s.node === id && s.city === city);
         if (f.place) sites = sites.filter((s) => s.name.includes(f.place));
-        if (state.demoEmpty) sites = [];
-        const list = sites.length ? sites.map((s) => `
-          <button class="stage-row" data-go="#/node/${id}/${city}/${s.id}">
-            <div><b>${s.name}</b><small>${cityName(city)}</small></div>
-            <div class="metric">${s.bat} 块</div>
-          </button>`).join("") : emptyBox("这一城市暂时没有记录");
         $("#app").innerHTML = `
           ${topBar(node.name + " · " + cityName(city), { back: `#/node/${id}`, account: true })}
           <div class="page page-notab">
-            <div class="card"><label>${cityName(city)}</label><strong>${(M.NODE_CITIES[id] || {})[city] || 0} 块</strong><div class="split">${sites.length} ${meta.unit}</div></div>
-            <div class="funnel" style="margin-top:8px">${list}</div>
+            <div class="card node-head">
+              <div>
+                <label>${cityName(city)}</label>
+                <strong>${(M.NODE_CITIES[id] || {})[city] || 0} 块</strong>
+                <div class="split">${sites.length} ${meta.unit}</div>
+              </div>
+              ${timeBtn("city:" + id + ":" + city, cityName(city))}
+            </div>
+            ${nodeTabBar()}
+            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点${meta.siteLabel}下钻 · 左滑看更早日期</p>
+            ${dateTableHtml(sites.map((s) => ({
+              name: s.name,
+              go: `#/node/${id}/${city}/${s.id}`,
+              seriesKey: "site:" + s.id,
+              kind: "battery",
+            })), tab, { nameLab: meta.siteLabel })}
           </div>`;
         return;
       }
       const site = M.SITES.find((s) => s.id === siteId);
-      const extra = `<div class="card"><label>${site ? site.name : siteId}</label><strong>${site ? site.bat : 0} 块</strong><div class="split">${cityName(city)}</div></div>`;
+      const extra = `<div class="card node-head">
+        <div>
+          <label>${site ? site.name : siteId}</label>
+          <strong>${site ? site.bat : 0} 块</strong>
+          <div class="split">${cityName(city)}</div>
+        </div>
+        ${timeBtn("site:" + siteId, site ? site.name : siteId)}
+      </div>` + nodeTabBar() +
+        `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+        dateTableHtml([{ name: site ? site.name : siteId, seriesKey: "site:" + siteId, kind: "battery" }], tab, { nameLab: meta.siteLabel });
       renderSnList(id, M.WIDE.filter((r) => r.node === id && r.siteId === siteId), (site ? site.name : node.name), `#/node/${id}/${city}`, extra);
       return;
     }
 
-    renderSnList(id, M.WIDE.filter((r) => r.node === id), node.name, "#/home", nodeHead(node));
+    const tab = currentNodeTab();
+    renderSnList(id, M.WIDE.filter((r) => r.node === id), node.name, "#/home",
+      nodeHead(node) + nodeTabBar() +
+      `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+      dateTableHtml([{ name: node.name, seriesKey: id, kind: node.kind }], tab, { nameLab: "节点" }));
   }
 
   function uniqueConflicts(rows) {
@@ -548,10 +590,11 @@
 
   function paintTrend() {
     const id = state.pf.trend.node;
-    const node = M.NODES.find((n) => n.id === id);
+    const node = M.NODES.find((n) => n.id === id) || { name: state.pf.trend.title || id, kind: id.indexOf("mat:") === 0 ? "material" : "battery" };
     const abnormal = state.pf.trend.dataset === "abnormal";
     const full = ((abnormal ? M.ABNORMAL_TRENDS : M.TRENDS)[id] || []).slice();
-    if (!node || !full.length) { toast("没有趋势"); return; }
+    if (!full.length) { toast("没有趋势"); return; }
+    const title = state.pf.trend.title || node.name || id;
     const pin = !!state.pf.trend.pinToday;
     const mode = state.pf.trend.mode || "line";
     const range = state.pf.trend.range || "7";
@@ -586,7 +629,7 @@
       <p class="section-legend">${pts[0].ymd} ~ ${pts[pts.length - 1].ymd} · 共 ${pts.length} 天</p>
       ${body}
       <button class="btn ghost block" style="margin-top:12px" data-act="close-sheet">关闭</button>`;
-    openSheet((node.name || "") + (abnormal ? " · 异常趋势" : " · 时间趋势"), html);
+    openSheet(title + (abnormal ? " · 异常趋势" : " · 时间趋势"), html);
     $$("[data-act='trend-mode']", $("#overlay")).forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -663,9 +706,10 @@
     const pick = state.pf.trend.pick;
     if (pick != null && pts[pick]) paintTip(pick);
   }
-  function openTrend(nodeId, dataset) {
+  function openTrend(nodeId, dataset, title) {
     state.pf.trend.node = nodeId;
     state.pf.trend.dataset = dataset === "abnormal" ? "abnormal" : "normal";
+    state.pf.trend.title = title || "";
     state.pf.trend.pick = null;
     paintTrend();
   }
@@ -807,7 +851,7 @@
     if (openEl) {
       const kind = openEl.getAttribute("data-open");
       if (kind === "day") openDay();
-      if (kind === "trend") openTrend(openEl.getAttribute("data-node"), openEl.getAttribute("data-dataset"));
+      if (kind === "trend") openTrend(openEl.getAttribute("data-node"), openEl.getAttribute("data-dataset"), openEl.getAttribute("data-title"));
       return;
     }
     const goEl = e.target.closest("[data-go]");
@@ -831,7 +875,7 @@
     }
     if (act === "node-tab") {
       state.pf.home.nodeTab = actEl.getAttribute("data-id") === "abnormal" ? "abnormal" : "normal";
-      renderHome();
+      render();
       return;
     }
     if (act === "cal-shift") {
