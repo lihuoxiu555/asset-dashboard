@@ -69,6 +69,49 @@
       <button type="button" class="seg ${nodeTab === "abnormal" ? "on" : ""}" data-act="node-tab" data-id="abnormal" role="tab">异常</button>
     </div>`;
   }
+  function nodeExStats(nodeId, city) {
+    const base = M.NODE_EX_STATS[nodeId] || { overdue: 0, conflict: 0, orphan: 0, overdueBars: { 5: 0, 7: 0, 10: 0 } };
+    if (!city) return base;
+    const bag = M.NODE_CITIES[nodeId] || {};
+    const total = Object.keys(bag).reduce((s, k) => s + (bag[k] || 0), 0) || 1;
+    const r = (bag[city] || 0) / total;
+    const sc = (n) => Math.round((n || 0) * r);
+    return {
+      overdue: sc(base.overdue),
+      conflict: sc(base.conflict),
+      orphan: sc(base.orphan),
+      overdueBars: { 5: sc(base.overdueBars[5]), 7: sc(base.overdueBars[7]), 10: sc(base.overdueBars[10]) },
+    };
+  }
+  function abnormalCardsHtml(stats, extraQs) {
+    const q = extraQs || "";
+    const bars = stats.overdueBars || { 5: 0, 7: 0, 10: 0 };
+    return `
+      <div class="kpi-grid three home-kpi">
+        <div class="card clickable" data-go="#/exceptions?type=overdue${q}">
+          <label>超期</label>
+          <strong class="tone-yellow">${stats.overdue}</strong>
+          <div class="split">${bars[5] || 0} / ${bars[7] || 0} / ${bars[10] || 0}</div>
+        </div>
+        <div class="card clickable" data-go="#/exceptions?type=conflict${q}">
+          <label>多维冲突</label>
+          <strong class="tone-red">${stats.conflict}</strong>
+          <div class="split">同一 SN 去重</div>
+        </div>
+        <div class="card clickable" data-go="#/exceptions?type=orphan${q}">
+          <label>归属缺失</label>
+          <strong class="tone-red">${stats.orphan}</strong>
+          <div class="split">当前归属为空</div>
+        </div>
+      </div>
+      <p class="section-legend" style="margin-top:8px">从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细</p>`;
+  }
+  function nodeTabExtra(nodeId, city, legend) {
+    const tab = currentNodeTab();
+    const qs = nodeId ? "&node=" + nodeId + (city ? "&city=" + city : "") : "";
+    const cards = tab === "abnormal" ? abnormalCardsHtml(nodeExStats(nodeId, city), qs) : "";
+    return nodeTabBar() + cards + `<p class="section-legend">${legend}</p>`;
+  }
 
   function parseHash() {
     const raw = (location.hash || "#/login").replace(/^#/, "");
@@ -211,26 +254,7 @@
       return;
     }
     const nodeTab = state.pf.home.nodeTab === "abnormal" ? "abnormal" : "normal";
-    const bars = h.overdueBars || { 5: 0, 7: 0, 10: 0 };
-    const abnormalCards = `
-      <div class="kpi-grid three home-kpi">
-        <div class="card clickable" data-go="#/exceptions?type=overdue">
-          <label>超期</label>
-          <strong class="tone-yellow">${h.overdue}</strong>
-          <div class="split">${bars[5] || 0} / ${bars[7] || 0} / ${bars[10] || 0}</div>
-        </div>
-        <div class="card clickable" data-go="#/exceptions?type=conflict">
-          <label>多维冲突</label>
-          <strong class="tone-red">${h.conflict}</strong>
-          <div class="split">同一 SN 去重</div>
-        </div>
-        <div class="card clickable" data-go="#/exceptions?type=orphan">
-          <label>归属缺失</label>
-          <strong class="tone-red">${h.orphan}</strong>
-          <div class="split">当前归属为空</div>
-        </div>
-      </div>
-      <p class="section-legend" style="margin-top:8px">从环节剥离 · 超期 5/7/10 · 冲突已去重 · 点卡片查明细</p>`;
+    const abnormalCards = abnormalCardsHtml(h);
     $("#app").innerHTML = `
       ${topBar("", { home: true, account: true })}
       <div class="page page-notab">
@@ -307,8 +331,7 @@
         ${topBar("物料", { back: "#/home", account: true })}
         <div class="page page-notab">
           ${nodeHead(node, "工厂 · 关键件")}
-          ${nodeTabBar()}
-          <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>
+          ${nodeTabExtra("material", "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期")}
           ${dateTableHtml(mats.map((r) => ({ name: r.name, seriesKey: "mat:" + r.id, kind: "material" })), tab, { nameLab: "物料" })}
         </div>`;
       return;
@@ -322,8 +345,7 @@
           ${topBar("生产中", { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "一厂一线 · 按工单时长")}
-            ${nodeTabBar()}
-            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点工单下钻 · 左滑看更早日期</p>
+            ${nodeTabExtra("wip", "", tab === "abnormal" ? "每日未关闭异常数 · 点工单下钻 · 左滑看更早日期" : "每日在量 · 点工单下钻 · 左滑看更早日期")}
             ${dateTableHtml(wos.map((w) => ({ name: w.id, go: "#/node/wip/" + w.id, seriesKey: "wo:" + w.id, kind: "battery" })), tab, { nameLab: "工单" })}
           </div>`;
         return;
@@ -336,8 +358,8 @@
     if (id === "transit") {
       const tab = currentNodeTab();
       renderSnList("transit", M.WIDE.filter((r) => r.node === "transit"), "在途", "#/home",
-        nodeHead(node, "发货截止日 → 今天") + nodeTabBar() +
-        `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+        nodeHead(node, "发货截止日 → 今天") +
+        nodeTabExtra("transit", "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期") +
         dateTableHtml([{ name: node.name, seriesKey: "transit", kind: "battery" }], tab, { nameLab: "节点" }));
       return;
     }
@@ -349,8 +371,7 @@
           ${topBar("无归属", { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "城市按资产数降序 · 无 GPS")}
-            ${nodeTabBar()}
-            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点城市下钻 · 左滑看更早日期 · 无 GPS</p>
+            ${nodeTabExtra("orphan", "", tab === "abnormal" ? "每日未关闭异常数 · 点城市下钻 · 左滑看更早日期 · 无 GPS" : "每日在量 · 点城市下钻 · 左滑看更早日期 · 无 GPS")}
             ${dateTableHtml(citiesByAsset("orphan").map((r) => ({
               name: r.name,
               go: "#/node/orphan/" + r.id,
@@ -373,8 +394,7 @@
           ${topBar(node.name, { back: "#/home", account: true })}
           <div class="page page-notab">
             ${nodeHead(node, "城市按资产数降序")}
-            ${nodeTabBar()}
-            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点城市下钻看${meta.siteLabel} · 左滑看更早日期</p>
+            ${nodeTabExtra(id, "", tab === "abnormal" ? "每日未关闭异常数 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期" : "每日在量 · 点城市下钻看" + meta.siteLabel + " · 左滑看更早日期")}
             ${dateTableHtml(citiesByAsset(id).map((r) => ({
               name: r.name,
               go: `#/node/${id}/${r.id}`,
@@ -398,8 +418,7 @@
               </div>
               ${timeBtn("city:" + id + ":" + city, cityName(city))}
             </div>
-            ${nodeTabBar()}
-            <p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 点${meta.siteLabel}下钻 · 左滑看更早日期</p>
+            ${nodeTabExtra(id, city, tab === "abnormal" ? "每日未关闭异常数 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期" : "每日在量 · 点" + meta.siteLabel + "下钻 · 左滑看更早日期")}
             ${dateTableHtml(sites.map((s) => ({
               name: s.name,
               go: `#/node/${id}/${city}/${s.id}`,
@@ -417,8 +436,7 @@
           <div class="split">${cityName(city)}</div>
         </div>
         ${timeBtn("site:" + siteId, site ? site.name : siteId)}
-      </div>` + nodeTabBar() +
-        `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+      </div>` + nodeTabExtra(id, city, tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期") +
         dateTableHtml([{ name: site ? site.name : siteId, seriesKey: "site:" + siteId, kind: "battery" }], tab, { nameLab: meta.siteLabel });
       renderSnList(id, M.WIDE.filter((r) => r.node === id && r.siteId === siteId), (site ? site.name : node.name), `#/node/${id}/${city}`, extra);
       return;
@@ -426,8 +444,7 @@
 
     const tab = currentNodeTab();
     renderSnList(id, M.WIDE.filter((r) => r.node === id), node.name, "#/home",
-      nodeHead(node) + nodeTabBar() +
-      `<p class="section-legend">${tab === "abnormal" ? "每日未关闭异常数" : "每日在量"} · 左滑看更早日期</p>` +
+      nodeHead(node) + nodeTabExtra(id, "", tab === "abnormal" ? "每日未关闭异常数 · 左滑看更早日期" : "每日在量 · 左滑看更早日期") +
       dateTableHtml([{ name: node.name, seriesKey: id, kind: node.kind }], tab, { nameLab: "节点" }));
   }
 

@@ -193,6 +193,18 @@ window.AssetBoardMock = (function () {
     { id: "EX-0918-03", type: "orphan", typeName: "归属缺失", scene: "", sn: "BAT09A07001", nodes: "工厂成品仓", place: "已关闭", city: "", found: "09-18", status: "closed", idle: 0 },
   ];
 
+  const NODE_EX_STATS = {
+    material: { overdue: 0, conflict: 0, orphan: 0, overdueBars: { 5: 0, 7: 0, 10: 0 } },
+    wip: { overdue: 1, conflict: 0, orphan: 0, overdueBars: { 5: 1, 7: 0, 10: 0 } },
+    factory: { overdue: 0, conflict: 0, orphan: 1, overdueBars: { 5: 0, 7: 0, 10: 0 } },
+    transit: { overdue: 2, conflict: 0, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 0 } },
+    front: { overdue: 2, conflict: 2, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 0 } },
+    cabinet: { overdue: 3, conflict: 1, orphan: 1, overdueBars: { 5: 3, 7: 2, 10: 1 } },
+    rider: { overdue: 2, conflict: 1, orphan: 1, overdueBars: { 5: 2, 7: 1, 10: 1 } },
+    maint: { overdue: 1, conflict: 1, orphan: 0, overdueBars: { 5: 1, 7: 1, 10: 0 } },
+    orphan: { overdue: 0, conflict: 0, orphan: 14, overdueBars: { 5: 0, 7: 0, 10: 0 } },
+  };
+
   const TRAILS = {
     BAT09A18001: [
       { at: "09-22 11:20", event: "到仓", from: "在途", to: "深圳南山前置仓", doc: "TR-0922-01" },
@@ -218,5 +230,5 @@ window.AssetBoardMock = (function () {
     ],
   };
 
-  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, TRENDS, ABNORMAL_TRENDS, WIDE, EXCEPTIONS, TRAILS };
+  return { ACCOUNTS, CITIES, MULTI, NODE_CITIES, SITES, NODES, SNAPSHOTS, HOME, MATERIALS, WORK_ORDERS, TRENDS, ABNORMAL_TRENDS, NODE_EX_STATS, WIDE, EXCEPTIONS, TRAILS };
 })();
